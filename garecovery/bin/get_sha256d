@@ -1,0 +1,8 @@
+#!/usr/bin/env python
+
+from wallycore import *
+import sys
+
+# get_sha256d tx
+# now you know twofactor safe (-:
+print(hex_from_bytes(sha256d(hex_to_bytes(sys.argv[1]))))

@@ -65,7 +65,7 @@ def tx_segwit_hash(tx, i, script, value):
     tx_bin += struct.pack("<L", tx.lock_time)
 
     # 10. hashType
-    tx_bin += struct.pack("<L", 1)
+    tx_bin += struct.pack("<L", 0x41) # BCASH
 
     return sha256d(tx_bin)
 

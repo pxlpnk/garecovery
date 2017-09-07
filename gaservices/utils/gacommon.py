@@ -5,11 +5,19 @@ import base64
 
 from pycoin.encoding import to_bytes_32
 from pycoin.tx.Tx import Tx, SIGHASH_ALL
+import pycoin.ui
 
 from gaservices.utils.btc_ import tx_segwit_hash
 from gaservices.utils import inscript
 from wallycore import *
+import logging
 
+# BCASH
+# Python 2/3 compatibility
+try:
+    user_input = raw_input
+except NameError:
+    user_input = input
 
 def _fernet_decrypt(key, data):
     assert hmac_sha256(key[:16], data[:-32]) == data[-32:]
@@ -74,38 +82,101 @@ class ActiveSignatory:
 
     def get_signature(self, sighash):
         sig = ec_sig_from_bytes(self.key, sighash, EC_FLAG_ECDSA)
-        signature = ec_sig_to_der(sig) + bytearray([SIGHASH_ALL, ])
+        signature = ec_sig_to_der(sig) + bytearray([0x41, ]) # BCASH
         return signature
 
 
-def sign(txdata, signatories):
+def sign(txdata, signatories, args): # BCASH
     tx = Tx.from_hex(txdata['tx'])
+
+    # BCASH
+    inp = []
+    you_signings = []
+
+    if args.recovery_mode == "2of2":
+
+        tx.lock_time = 0 # no nloktime
+        satoshi = 0
+
+        for prevout_index, txin in enumerate(tx.txs_in):
+            script_type = txdata['prevout_script_types'][prevout_index]
+            if script_type == SEGWIT:
+                return None
+
+            txin.sequence = 0xffffffff # no nloktime, rbf
+
+            inp.append({ "value": int(txdata['prevout_values'][prevout_index]),
+                         "script": txdata['prevout_scripts'][prevout_index],
+                         "subaccount": txdata['prevout_subaccounts'][prevout_index],
+                         "pointer": txdata['prevout_pointers'][prevout_index] })
+            satoshi += inp[-1]["value"]
+
+        assert len(tx.txs_out) == 1
+        tx.txs_out[0].script = pycoin.ui.script_obj_from_address(args.destination_address).script()
+
+        fee = len(tx.as_bin()) * args.default_feerate
+        tx.txs_out[0].coin_value = satoshi - fee
+
     for prevout_index, txin in enumerate(tx.txs_in):
 
         script = hex_to_bytes(txdata['prevout_scripts'][prevout_index])
         script_type = txdata['prevout_script_types'][prevout_index]
-
         if script_type == SEGWIT:
-            value = int(txdata['prevout_values'][prevout_index])
-            sighash = tx_segwit_hash(tx, prevout_index, script, value)
-        else:
-            sighash = to_bytes_32(tx.signature_hash(script, prevout_index, SIGHASH_ALL))
+            return None
 
-        signatures = [signatory.get_signature(sighash) for signatory in signatories]
+        value = int(txdata['prevout_values'][prevout_index])
+        sighash = tx_segwit_hash(tx, prevout_index, script, value)
 
-        if script_type == SEGWIT:
-            tx.set_witness(prevout_index, [b'', ] + signatures + [script, ])
-            txin.script = inscript.witness(script)
+        if args.recovery_mode == "2of2":
+            # only for you - after is greenaddress
+            you_sign = signatories[1].get_signature(sighash)
+            you_signings.append(you_sign)
+            txin.script = inscript.multisig_2_of_2(script, you_sign)
         else:
+            signatures = [signatory.get_signature(sighash) for signatory in signatories]
+            txin.script = inscript.multisig(script, signatures)
+
+    if args.recovery_mode == "2of2":
+        # BCASH
+        h = hex_from_bytes(sha256d(tx.as_bin()))
+        logging.warning("sign tx: check same your email!")
+        logging.warning("tx:" + tx.as_hex())
+        logging.warning("sha256d: " + h)
+
+        # ask code
+        twofactor = { }
+        if args.twofactor["email"]:
+            args.conn.call("twofactor.request_email", "sign_alt_tx", 
+                           { "txtype": "bcash", "sha256d": h })
+            twofactor = { "method": "email" }
+        elif args.twofactor["sms"]:
+            args.conn.call("twofactor.request_sms", "sign_alt_tx", 
+                           { "txtype": "bcash", "sha256d": h })
+            twofactor = { "method": "sms" }
+        elif args.twofactor["any"]:
+            logging.warning("need email/sms twofactor")
+            assert False, "need email/sms twofactor"
+
+        if args.twofactor["any"]:
+            twofactor["code"] = user_input(twofactor["method"] + " code:")
+
+        # sign greenaddress
+        signing = args.conn.call("vault.sign_alt_tx", tx.as_hex(), "bcash",
+                                 inp, twofactor)
+
+        for prevout_index, txin in enumerate(tx.txs_in):
+            script = hex_to_bytes(txdata['prevout_scripts'][prevout_index])
+            signatures = [ hex_to_bytes(signing['signatures'][prevout_index]),
+                           you_signings[prevout_index] ]
             txin.script = inscript.multisig(script, signatures)
 
     return tx
 
 
-def countersign(txdata, private_key):
-    GreenAddress = PassiveSignatory(hex_to_bytes(txdata['prevout_signatures'][0]))
+def countersign(txdata, private_key, args): # BCASH
+    #GreenAddress = PassiveSignatory(hex_to_bytes(txdata['prevout_signatures'][0]))
     user = ActiveSignatory(bip32_key_get_priv_key(private_key))
-    return sign(txdata, [GreenAddress, user])
+    return sign(txdata, [None, user], args)
 
 
 def derive_hd_key(root, path, flags=0):

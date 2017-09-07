@@ -173,16 +173,16 @@ class UTXO:
         not supported as it is too error prone.
         """
         default_feerate = clargs.args.default_feerate
-        if not is_testnet_address(self.dest_address):
-            # For non-testnet addresses do not support --default-feerate
-            msg = 'Unable to get fee rate from core'
-            if default_feerate:
-                msg = msg + ' (ignoring --default-feerate on mainnet)'
-            raise exceptions.NoFeeRate(msg)
+        #if not is_testnet_address(self.dest_address):
+        #    # For non-testnet addresses do not support --default-feerate
+        #    msg = 'Unable to get fee rate from core'
+        #    if default_feerate:
+        #        msg = msg + ' (ignoring --default-feerate on mainnet)'
+        #    raise exceptions.NoFeeRate(msg)
 
-        if default_feerate is None:
-            msg = 'Unable to get fee rate from core, you must pass --default-feerate'
-            raise exceptions.NoFeeRate(msg)
+        #if default_feerate is None:
+        #    msg = 'Unable to get fee rate from core, you must pass --default-feerate'
+        #    raise exceptions.NoFeeRate(msg)
 
         fee_satoshi_byte = decimal.Decimal(default_feerate)
         return fee_satoshi_byte
@@ -190,21 +190,22 @@ class UTXO:
     def get_feerate(self):
         """Return the required fee rate in satoshis per byte"""
         logging.debug("Connecting to bitcoinrpc to get feerate")
-        core = bitcoincore.Connection(clargs.args)
+        #core = bitcoincore.Connection(clargs.args)
 
         blocks = clargs.args.fee_estimate_blocks
 
-        fee_btc_kb = core.estimatesmartfee(blocks)['feerate']
-        if fee_btc_kb == -1:
-            # estimatesmartfee returns -1 to indicate it is unable to provide a fee estimate
-            fee_satoshi_byte = self.get_default_feerate()
-        else:
-            fee_satoshi_kb = fee_btc_kb * satoshi_per_btc
-            fee_satoshi_byte = round(fee_satoshi_kb / 1000)
+        #fee_btc_kb = core.estimatesmartfee(blocks)['feerate']
+        #if fee_btc_kb == -1:
+        #    # estimatesmartfee returns -1 to indicate it is unable to provide a fee estimate
+        #    fee_satoshi_byte = self.get_default_feerate()
+        #else:
+        #    fee_satoshi_kb = fee_btc_kb * satoshi_per_btc
+        #    fee_satoshi_byte = round(fee_satoshi_kb / 1000)
 
-            logging.debug('feerate = {} BTC/kb'.format(fee_btc_kb))
-            logging.debug('feerate = {} satoshis/kb'.format(fee_satoshi_kb))
+        #    logging.debug('feerate = {} BTC/kb'.format(fee_btc_kb))
+        #    logging.debug('feerate = {} satoshis/kb'.format(fee_satoshi_kb))
 
+        fee_satoshi_byte = self.get_default_feerate()
         logging.info('Fee estimate for confirmation in {} blocks is '
                      '{} satoshis/byte'.format(blocks, fee_satoshi_byte))
 
@@ -235,9 +236,7 @@ class UTXO:
         scriptPubKey = pycoin.ui.script_obj_from_address(self.dest_address)
         txout = TxOut(adjusted_amount_satoshi, scriptPubKey.script())
 
-        # Set nlocktime to the current blockheight to discourage 'fee sniping', as per the core
-        # wallet implementation
-        nlocktime = util.get_current_blockcount() or 0
+        nlocktime = 0
 
         version = 1
         tx = Tx(version, [txin, ], [txout, ], nlocktime)
@@ -268,9 +267,12 @@ class UTXO:
             return gacommon.sign(
                 txdata,
                 signatories,
+                clargs.args
             )
 
         signed_no_fee = sign_(fee=1000)
+        if signed_no_fee is None:
+            return None
         fee_satoshi = self.get_fee(signed_no_fee)
         signed_fee = sign_(fee=fee_satoshi)
         return signed_fee.as_hex()
@@ -428,7 +430,12 @@ class TwoOfThree(object):
 
     def sign_utxos(self):
         logging.debug("signing {} utxos...".format(len(self.utxos)))
-        return [utxo.sign() for utxo in self.utxos]
+        utxos = []
+        for utxo in self.utxos:
+            tx = utxo.sign()
+            if tx is not None:
+                utxos.append(tx)
+        return utxos
 
     def get_transactions(self):
         # Get a list of utxos by scanning the blockchain

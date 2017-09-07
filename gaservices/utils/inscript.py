@@ -25,3 +25,9 @@ def multisig(script, signatures):
     for signature in signatures:
         multisig += _push(signature)
     return multisig + _push(script)
+
+def multisig_2_of_2(script, signature): # BCASH
+    multisig = bytearray(_b('00'))
+    multisig += bytearray(_b('0100')) # greenaddress add here
+    multisig += _push(signature)
+    return multisig + _push(script)

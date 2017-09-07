@@ -73,6 +73,15 @@ def get_args(argv):
         '-v', '--verbose',
         help="Be verbose",
         action="store_const", dest="loglevel", const=logging.INFO)
+    parser.add_argument(
+        '--destination-address',
+        help='An address to recover transactions to')
+    parser.add_argument(
+        '--default-feerate',
+        dest='default_feerate',
+        type=int,
+        default=5,
+        help='Fee rate (satoshis per byte)')
 
     rpc = parser.add_argument_group('Bitcoin RPC options')
 
@@ -107,10 +116,6 @@ def get_args(argv):
         help='Name of the nlocktime file sent from GreenAddress')
 
     two_of_three = parser.add_argument_group('2of3 options')
-    two_of_three.add_argument(
-        '--destination-address',
-        help='An address to recover 2of3 transactions to')
-
     two_of_three_xpub_exclusive = two_of_three.add_mutually_exclusive_group(required=False)
     two_of_three_xpub_exclusive.add_argument(
         '--ga-xpub',
@@ -163,11 +168,6 @@ def get_args(argv):
         default=DEFAULT_FEE_ESTIMATE_BLOCKS,
         help='Use a transaction fee likely to result in a transaction being '
              'confirmed in this many blocks minimum')
-    advanced_2of3.add_argument(
-        '--default-feerate',
-        dest='default_feerate',
-        type=int,
-        help='Fee rate (satoshis per byte) to use if unable to automatically get one')
 
     argcomplete.autocomplete(parser)
     result = parser.parse_args(argv[1:])
@@ -187,8 +187,9 @@ def get_args(argv):
 
     if result.recovery_mode == '2of2':
         arg_required('--nlocktime-file')
-        for arg in ['--destination-address', '--ga-xpub', '--search-subaccounts',
-                    '--recovery-mnemonic-file', '--custom-xprv', '--default-feerate']:
+        arg_required('--destination-address')
+        for arg in ['--ga-xpub', '--search-subaccounts',
+                    '--recovery-mnemonic-file', '--custom-xprv']:
             arg_disallowed(arg)
 
     elif result.recovery_mode == '2of3':
@@ -197,4 +198,5 @@ def get_args(argv):
         if optval('search_subaccounts') is None:
             arg_required('--ga-xpub', '--ga-xpub or --search-subaccounts')
 
+    result.login_data = None
     return result

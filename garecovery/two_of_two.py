@@ -91,7 +91,7 @@ class TwoOfTwo:
         if any(xpub in redeem_script for xpub in mainnet_xpubs):
             return False
         if any(xpub in redeem_script for xpub in testnet_xpubs):
-            return True
+            assert False, "no testnet" # BCASH
 
         # Default to mainnet
         # Generally one of the derived xpubs will be found in the redeem script. It's possible
@@ -104,7 +104,7 @@ class TwoOfTwo:
 
     def _get_signed_tx(self, txdata):
         key = gacommon.derive_user_private_key(txdata, self.wallet, branch=1)
-        return gacommon.countersign(txdata, key)
+        return gacommon.countersign(txdata, key, clargs.args) # BCASH
 
     def _get_private_key_wif(self, txdata):
         key = gacommon.derive_user_private_key(txdata, self.wallet, branch=4)
@@ -114,6 +114,8 @@ class TwoOfTwo:
         txs = []
         for txdata in self.txdata:
             tx = self._get_signed_tx(txdata)
-            tx.private_key_wif = self._get_private_key_wif(txdata)
-            txs.append(tx)
+            if tx is not None:
+                if not clargs.args.destination_address: # BCASH
+                    tx.private_key_wif = self._get_private_key_wif(txdata)
+                txs.append(tx)
         return txs

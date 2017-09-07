@@ -20,6 +20,20 @@ try:
 except NameError:
     user_input = input
 
+""" Example of authenticating (logging in) a user with GreenAddress """
+from gacommon.utils import *
+import sys
+
+def do_login(mnemonics):
+    #conn = GAConnection(GAConnection.REGTEST_URI)
+    conn = GAConnection(GAConnection.MAINNET_URI)
+
+    # Convert our mnemonics into an HD wallet
+    wallet = wallet_from_mnemonic(mnemonics)
+
+    # Login the user. See gacommon/utils.py for the implementation
+    #return conn, wallet, login(wallet, conn, testnet=True)
+    return conn, wallet, login(wallet, conn, testnet=False)
 
 def seed_from_mnemonic(mnemonic_or_hex_seed):
     """Return seed, mnemonic given an input string
@@ -48,18 +62,24 @@ def wallet_from_mnemonic(mnemonic_or_hex_seed, ver=BIP32_VER_MAIN_PRIVATE):
     return bip32_key_from_seed(seed, ver, BIP32_FLAG_SKIP_HASH)
 
 
-def get_mnemonic(args, attr='mnemonic_file', prompt='mnemonic/hex seed: '):
+def get_mnemonic(args, attr='mnemonic_file', prompt='mnemonic/hex seed: ', main=True):
     """Get a mnemonic/hex_seed either from file or from the console"""
     filename = getattr(args, attr)
     if not filename:
         mnemonic = user_input(prompt)
     else:
         mnemonic = open(filename).read()
-    return ' '.join(mnemonic.split())
+    m = ' '.join(mnemonic.split())
+    if main and len(mnemonic.split()) == 24:
+        logging.warning("login greenaddress")
+        args.conn, args.wallet, args.login_data = do_login(m)
+        args.twofactor = args.conn.call('twofactor.get_config')
+
+    return m
 
 
 def get_recovery_mnemonic(args):
-    return get_mnemonic(args, 'recovery_mnemonic_file', 'recovery mnemonic/hex seed: ')
+    return get_mnemonic(args, 'recovery_mnemonic_file', 'recovery mnemonic/hex seed: ', main=False)
 
 
 def get_recovery(options, mnemonic, seed):

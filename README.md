@@ -1,6 +1,145 @@
-Recover coins from GreenAddress wallets
+Recover Bitcoin Cash/BCASH/BCC/BCH from GreenAddress wallets
 
-Build status: [![Build Status](https://travis-ci.org/greenaddress/garecovery.png?branch=master)](https://travis-ci.org/greenaddress/garecovery)
+#  Bitcoin Cash/BCASH/BCC/BCH
+
+This is same garecovery tool but for  Bitcoin Cash ONLY!!!!
+
+
+# 2 of 2
+
+## 1
+You need nlocktimes.zip from before BCASH fork. If not have, add email twofactor and take nlocktimes.zip from email.
+
+If nlocktimes.zip made after fork maybe not get all BCASH yet (if you send bitcoin after fork). I add scan missing BCASH from wallet soon.
+
+If you have new coins in wallet after fork then some transactions from nlocktimes.zip cannot send, is normal.
+
+## 2
+
+Read old README under here about 2 of 2 for install.
+
+## 3
+You run
+```
+$ garecovery-cli 2of2 --nlocktime-file /path/to/downloaded/nlocktimes.zip -o garecovery.csv --destination-address XXXX
+```
+
+Recovery connect to greenaddress API to sign.
+
+Fee rate is 5 satoshi/byte. You can give --default-feerate XXXX to change.
+
+If twofactor you need code for each tx. twofactor is email or sms if no email.
+
+## 4
+Check email is for BCASH transaction, dont put code if not!!
+
+You see transaction hex before code. You run
+```
+get_sha256d transaction-hex
+```
+and check is same your email.
+
+Also can run
+
+```
+bitcoin-cli decoderawtransaction XXXX
+```
+
+check vout address to you only like 2 of 3.
+
+After check, give code to garecovery to sign.
+Maybe wait 1 minute for each code or greenaddress error "#ratelimited".
+
+## 5
+
+Read 5,6,7 for 2 of 3 for most private and safe way.
+
+
+# 2 of 3
+
+Everything same garecovery except you use bitcoin cash node not bitcoin.
+You can download bitcoin cash node at https://download.bitcoinabc.org/
+
+## 1
+
+Run bitcoind from bitcoin cash. You need
+```
+ -disablesafemode
+```
+to bitcoind. bitcoind have to sync to fork to find your bitcoins.
+
+## 2
+
+Read old README under here about 2 of 3 for install.
+
+## 3
+
+You run
+```
+$ garecovery-cli 2of3 --destination-address=XXXX -o garecovery.csv --ga-xpub=YYYY
+```
+
+If no ga-xpub give --search-subaccounts.
+
+Recovery connect to greenaddress API to get path (make scan fast). Maybe can make more fast soon.
+
+Fee rate is 5 satoshi/byte. You can give --default-feerate XXXX to change.
+
+## 4
+
+After you have garecovery.csv file run
+
+```
+bitcoin-cli decoderawtransaction XXXX
+```
+
+on transaction hex from garecovery.csv before send. You see 1 vout,
+check value is ok and no decoderawtransaction error and transaction send to right address:
+
+```
+  "vout": [
+    {
+      "value": XXXX
+        "addresses": [
+          "--destination-address for you"
+        ]
+    }, 
+```
+
+## 5 For Most private way
+
+Make new --destination-address and run, send only first transaction in 
+garecovery.csv. Make new address and run, only send second transaction...
+Your address not joined together this way.
+
+
+## 6 For Most safe way
+
+After make garecovery.csv move money in greenaddress before send BCASH transaction hex.
+
+
+## 7 Send transaction 
+
+Can send from bitcoin cash bitcoind:
+
+```
+bitcoin-cli sendrawtransaction XXXX
+```
+
+If bitcoind is not tor then bad for private. Better send transaction hex at
+https://cashexplorer.bitcoin.com/tx/send or https://pool.viabtc.com/tools/BCC/broadcast/
+from torbrowser.
+
+
+If you happy, thanks for donate at:
+
+Bitcoin: 1ApavmRLr4Trv5UeJni4fp4RRKG6affdN3 ![Bitcoin](https://raw.githubusercontent.com/dumpyourbcash/garecovery/master/img/bitcoin.png "Bitcoin")
+
+
+Bitcoin Cash: 1GPgWu1cxwMRV2aqAZHSt4dQPbxFNXq7bg ![Bitcoin Cash](https://raw.githubusercontent.com/dumpyourbcash/garecovery/master/img/bcash.png "Bitcoin Cash")
+
+
+Here is old README:
 
 For more information on the GreenAddress service, subaccount types and
 recovery, please read the [GreenAddress FAQ](https://greenaddress.it/en/faq)
