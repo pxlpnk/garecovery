@@ -9,7 +9,7 @@ from . import exceptions
 from . import formatting
 
 from .two_of_two import TwoOfTwo
-from .two_of_three import TwoOfThree
+from .two_of_three import TwoOfThree, TwoOfTwoScan
 
 import pycoin.networks.default
 
@@ -95,6 +95,9 @@ def get_recovery(options, mnemonic, seed):
             backup_wallet = wallet_from_mnemonic(recovery_mnemonic)
 
         return TwoOfThree(mnemonic, wallet, backup_wallet, options.custom_xprv)
+    elif options.recovery_mode == "2of2scan":
+        wallet = bip32_key_from_seed(seed, BIP32_VER_MAIN_PRIVATE, BIP32_FLAG_SKIP_HASH)
+        return TwoOfTwoScan(mnemonic, wallet)
     else:
         return TwoOfTwo(mnemonic, seed, options.nlocktime_file)
 

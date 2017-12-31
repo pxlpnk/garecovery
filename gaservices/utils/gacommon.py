@@ -93,7 +93,7 @@ def sign(txdata, signatories, args): # BCASH
     inp = []
     you_signings = []
 
-    if args.recovery_mode == "2of2":
+    if args.recovery_mode == "2of2" or args.recovery_mode == "2of2scan":
 
         tx.lock_time = 0 # no nloktime
         satoshi = 0
@@ -114,7 +114,11 @@ def sign(txdata, signatories, args): # BCASH
         assert len(tx.txs_out) == 1
         tx.txs_out[0].script = pycoin.ui.script_obj_from_address(args.destination_address).script()
 
-        fee = len(tx.as_bin()) * args.default_feerate
+        if args.recovery_mode == "2of2scan":
+            fee_size = len(tx.as_bin()) + 220 # tx not have script, not have sign
+        else:
+            fee_size = len(tx.as_bin())
+        fee = fee_size * args.default_feerate
         tx.txs_out[0].coin_value = satoshi - fee
 
     for prevout_index, txin in enumerate(tx.txs_in):
@@ -127,7 +131,7 @@ def sign(txdata, signatories, args): # BCASH
         value = int(txdata['prevout_values'][prevout_index])
         sighash = tx_segwit_hash(tx, prevout_index, script, value)
 
-        if args.recovery_mode == "2of2":
+        if args.recovery_mode == "2of2" or args.recovery_mode == "2of2scan":
             # only for you - after is greenaddress
             you_sign = signatories[1].get_signature(sighash)
             you_signings.append(you_sign)
@@ -136,7 +140,7 @@ def sign(txdata, signatories, args): # BCASH
             signatures = [signatory.get_signature(sighash) for signatory in signatories]
             txin.script = inscript.multisig(script, signatures)
 
-    if args.recovery_mode == "2of2":
+    if args.recovery_mode == "2of2" or args.recovery_mode == "2of2scan":
         # BCASH
         h = hex_from_bytes(sha256d(tx.as_bin()))
         logging.warning("sign tx: check same your email!")

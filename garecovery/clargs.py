@@ -37,7 +37,7 @@ def get_args(argv):
 
     parser.add_argument(
         'recovery_mode',
-        choices=['2of2', '2of3'],
+        choices=['2of2', '2of3', "2of2scan"],
         default='2of2',
         help='Type of recovery to perform')
     parser.add_argument(
@@ -187,6 +187,13 @@ def get_args(argv):
 
     if result.recovery_mode == '2of2':
         arg_required('--nlocktime-file')
+        arg_required('--destination-address')
+        for arg in ['--ga-xpub', '--search-subaccounts',
+                    '--recovery-mnemonic-file', '--custom-xprv']:
+            arg_disallowed(arg)
+
+    if result.recovery_mode == '2of2scan':
+        arg_disallowed('--nlocktime-file')
         arg_required('--destination-address')
         for arg in ['--ga-xpub', '--search-subaccounts',
                     '--recovery-mnemonic-file', '--custom-xprv']:

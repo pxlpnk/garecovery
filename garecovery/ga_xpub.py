@@ -49,7 +49,7 @@ def get_ga_root_key(testnet):
 def derive_ga_xpub(gait_path, subaccount, testnet):
     """Derive a GreenAddress extended public key"""
     ga_root_key = get_ga_root_key(testnet)
-    if subaccount is not None:
+    if subaccount:
         branch = 3
         ga_path = [branch, ] + gait_path + [subaccount, ]
     else:

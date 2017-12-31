@@ -5,6 +5,9 @@ import math
 import os
 import shutil
 import time
+import urllib2
+import json
+from time import sleep
 
 import pycoin.ui
 import pycoin.key.BIP32Node
@@ -34,7 +37,6 @@ HARDENED = 0x80000000
 
 MAX_BIP125_RBF_SEQUENCE = 0xfffffffd
 
-
 def get_scriptpubkey_hex(redeem_script_hash_hex):
     """Return a 2of3 multisig script pub key as a hex string"""
     return "a914{}87".format(redeem_script_hash_hex)
@@ -44,6 +46,8 @@ def get_redeem_script(keys):
     """Return a 2of3 multisig redeem script as a hex string"""
     keys = [hex_from_bytes(key) for key in keys]
     logging.debug("get_redeem_script public keys = {}".format(keys))
+    if len(keys) == 2:
+        return hex_to_bytes("5221{}21{}52ae".format(*keys))
     return hex_to_bytes("5221{}21{}21{}53ae".format(*keys))
 
 
@@ -252,7 +256,7 @@ class UTXO:
                       'byte = {} satoshis'.format(virtual_tx_size, fee_satoshi_byte, fee_satoshi))
         return fee_satoshi
 
-    def sign(self):
+    def sign(self, twooftwo=False):
         """Return raw signed transaction"""
         type_map = {'p2wsh': gacommon.SEGWIT, 'p2sh': 0}
         txdata = {
@@ -260,7 +264,15 @@ class UTXO:
             'prevout_script_types': [type_map[self.witness.type_], ],
             'prevout_values': [self.tx.txs_out[self.vout].coin_value, ],
         }
-        signatories = [gacommon.ActiveSignatory(key) for key in self.keyset.private_keys]
+
+        if twooftwo:
+            txdata['prevout_subaccounts'] = [self.keyset.subaccount, ]
+            txdata['prevout_pointers'] = [self.keyset.pointer, ]
+
+        if twooftwo:
+            signatories = [None, gacommon.ActiveSignatory(self.keyset.private_keys[0])]
+        else:
+            signatories = [gacommon.ActiveSignatory(key) for key in self.keyset.private_keys]
 
         def sign_(fee):
             txdata['tx'] = self.get_raw_unsigned(fee)
@@ -270,11 +282,14 @@ class UTXO:
                 clargs.args
             )
 
-        signed_no_fee = sign_(fee=1000)
-        if signed_no_fee is None:
-            return None
-        fee_satoshi = self.get_fee(signed_no_fee)
-        signed_fee = sign_(fee=fee_satoshi)
+        if twooftwo:
+            signed_fee = sign_(fee=0) # sign make new fee in BCASH
+        else:
+            signed_no_fee = sign_(fee=1000)
+            if signed_no_fee is None:
+                return None
+            fee_satoshi = self.get_fee(signed_no_fee)
+            signed_fee = sign_(fee=fee_satoshi)
         return signed_fee.as_hex()
 
 
@@ -296,7 +311,7 @@ class TwoOfThree(object):
 
         if backup_wallet:
             self.wallets.append(backup_wallet)
-        else:
+        elif clargs.args.recovery_mode == "2of3":
             assert self.custom_xprv
             logging.info('Using custom xprv = {}'.format(self.custom_xprv))
 
@@ -310,10 +325,11 @@ class TwoOfThree(object):
         """Return true if the destination address is a testnet address"""
         return is_testnet_address(self.get_destination_address())
 
-    def scan_blockchain(self, keysets):
+    def scan_blockchain(self, keysets, https=False):
         # Blockchain scanning is delegated to core via bitcoinrpc
         logging.debug("Connecting to bitcoinrpc to scan blockchain")
-        core = bitcoincore.Connection(clargs.args)
+        if not https:
+            core = bitcoincore.Connection(clargs.args)
 
         logging.info("Scanning from '{}'".format(clargs.args.scan_from))
         logging.warning('This step may take 10 minutes or more')
@@ -331,20 +347,34 @@ class TwoOfThree(object):
                     'watchonly': True,
                 })
         logging.info('Importing {} derived addresses into bitcoind'.format(len(requests)))
-        result = core.importmulti(requests)
-        expected_result = [{'success': True}, ] * len(requests)
-        if result != expected_result:
-            logging.warning('Unexpected result from importmulti')
-            logging.warning('Expected: {}'.format(expected_result))
-            logging.warning('Actual: {}'.format(result))
-            raise exceptions.ImportMultiError('Unexpected result from importmulti')
-        logging.info('Successfully imported {} derived addresses'.format(len(result)))
 
-        # Scan the blockchain for any utxos with addresses that match the derived keysets
-        logging.info('Getting unspent transactions...')
-        all_utxos = core.listunspent(0, 9999999, addresses)
-        logging.debug('all utxos = {}'.format(all_utxos))
-        logging.info('There are {} unspent transactions'.format(len(all_utxos)))
+        if https:
+            all_utxos = []
+            for addr in addresses:
+                data = None
+                while data is None:
+                    try:
+                        data = urllib2.urlopen("https://blockdozer.com/insight-api/addr/%s/utxo" % addr).read()
+                        data = json.loads(data.decode("ascii"))
+                        all_utxos.extend(data)
+                    except:
+                        sleep(10)
+                        data = None
+        else:
+            result = core.importmulti(requests)
+            expected_result = [{'success': True}, ] * len(requests)
+            if result != expected_result:
+                logging.warning('Unexpected result from importmulti')
+                logging.warning('Expected: {}'.format(expected_result))
+                logging.warning('Actual: {}'.format(result))
+                raise exceptions.ImportMultiError('Unexpected result from importmulti')
+            logging.info('Successfully imported {} derived addresses'.format(len(result)))
+
+            # Scan the blockchain for any utxos with addresses that match the derived keysets
+            logging.info('Getting unspent transactions...')
+            all_utxos = core.listunspent(0, 9999999, addresses)
+            logging.debug('all utxos = {}'.format(all_utxos))
+            logging.info('There are {} unspent transactions'.format(len(all_utxos)))
 
         # Now need to match the returned utxos with the keysets that unlock them
         # This is a rather unfortunate loop because there is no other way to correlate the
@@ -356,7 +386,22 @@ class TwoOfThree(object):
                       for witness in keyset.witnesses.values()
                       if tx['scriptPubKey'] == witness.scriptPubKey]
 
-        raw_txs = core.batch_([["getrawtransaction", tx[0]] for tx in tx_matches])
+        if https:
+            txs = {tx[0]:"" for tx in tx_matches}
+            for tx in txs.keys():
+                data = None
+                while data is None:
+                    try:
+                        data = urllib2.urlopen("https://blockdozer.com/insight-api/rawtx/%s" % tx).read()
+                        data = json.loads(data.decode("ascii"))
+                        txs[tx] = data["rawtx"]
+                    except:
+                        sleep(10)
+                        data = None
+            raw_txs = [txs[tx[0]] for tx in tx_matches]
+        else:
+            raw_txs = core.batch_([["getrawtransaction", tx[0]] for tx in tx_matches])
+
         dest_address = self.get_destination_address()
         for txid_match, raw_tx in zip(tx_matches, raw_txs):
             txid, keyset, witness, txvout = txid_match
@@ -444,4 +489,77 @@ class TwoOfThree(object):
             clargs.args.search_subaccounts or 0)
 
         raw_txs = self.sign_utxos()
+        return [Tx.from_hex(raw_tx) for raw_tx in raw_txs]
+
+
+class DerivedKeySet2Of2Scan:
+    """Represent sets of HD keys
+    """
+
+    def __init__(self, user_key, xpubs, a, testnet):
+        subaccount = int(a["subaccount"])
+        pointer = int(a["pointer"])
+        logging.debug('Derive keys for subaccount={}, pointer={}'.format(subaccount, pointer))
+
+        self.subaccount = subaccount
+        self.pointer = pointer
+
+        # Derive the GreenAddress public key for this pointer value
+        ga_key = gacommon.derive_hd_key(xpubs[0], [pointer, ], BIP32_FLAG_KEY_PUBLIC)
+        self.ga_key = bip32_key_get_pub_key(ga_key)
+        logging.debug("ga_key = {}".format(hex_from_bytes(self.ga_key)))
+
+        # Derive the user private keys for this pointer value
+        flags = BIP32_FLAG_KEY_PRIVATE
+        user_key_paths = [(user_key, [pointer, ])]
+        private_keys = [gacommon.derive_hd_key(*path, flags=flags) for path in user_key_paths]
+        self.private_keys = [bip32_key_get_priv_key(key) for key in private_keys]
+
+        # Derive the user public keys from the private keys
+        user_public_keys = [ec_public_key_from_private_key(key) for key in self.private_keys]
+        public_keys = [self.ga_key, ] + user_public_keys
+
+        self.witnesses = {"p2sh": P2SH(public_keys, testnet)}
+        assert self.witnesses["p2sh"].address == a["ad"]
+
+
+class TwoOfTwoScan(TwoOfThree):
+
+    def __init__(self, mnemonic, wallet):
+        super(TwoOfTwoScan, self).__init__( mnemonic, wallet, None, None)
+
+    def get_destination_address(self):
+        """Return the destination address to recover funds to"""
+        return clargs.args.destination_address
+
+    def _is_testnet(self):
+        """Return true if the destination address is a testnet address"""
+        return is_testnet_address(self.get_destination_address())
+
+    def get_transactions(self):
+        # Get a list of utxos by scanning the blockchain
+        keysets = []
+        for subaccount in [0]: # not yet subaccount
+            user_key = derive_user_key(self.wallets[0], subaccount)
+            xpubs = ga_xpub.xpubs_from_mnemonic(self.mnemonic, subaccount, self.is_testnet)
+            addrs = clargs.args.conn.call("addressbook.get_my_addresses", subaccount)
+            pointer = 0
+            while len(addrs):
+                for a in addrs:
+                    pointer = a["pointer"]
+                    if a["addr_type"] == "p2sh":
+                        a["subaccount"] = subaccount 
+                        keysets.append(DerivedKeySet2Of2Scan(user_key, xpubs, a, self.is_testnet))
+                if pointer:
+                    addrs = clargs.args.conn.call("addressbook.get_my_addresses", subaccount, pointer)
+                else:
+                    addrs = []
+
+        utxos = self.scan_blockchain(keysets,https=True)
+        raw_txs = []
+        for utxo in utxos:
+            tx = utxo.sign(twooftwo=True)
+            if tx is not None:
+                raw_txs.append(tx)
+
         return [Tx.from_hex(raw_tx) for raw_tx in raw_txs]

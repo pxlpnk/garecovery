@@ -5,6 +5,34 @@ Recover Bitcoin Cash/BCASH/BCC/BCH from GreenAddress wallets
 This is same garecovery tool but for  Bitcoin Cash ONLY!!!!
 
 
+# 2 of 2 Scan
+
+## 1
+Scan your main wallet and send all BCASH.
+
+No need nlocktimes.zip, no need BCASH bitcoind!
+
+Maybe you send BCASH to greenaddress wallet after fork. Can get back, only if not segwit address.
+
+## 2
+
+Read old README under here about 2 of 2 for install.
+
+## 3
+You run
+```
+$ garecovery-cli 2of2scan -o garecovery.csv --destination-address XXXX
+```
+
+Recovery connect to greenaddress API to get address and sign.
+
+Fee rate is 5 satoshi/byte. You can give --default-feerate XXXX to change.
+
+If twofactor you need code for each tx. twofactor is email or sms if no email.
+
+Read #4, #5 for 2 of 2 for check transaction is ok.
+
+
 # 2 of 2
 
 ## 1
