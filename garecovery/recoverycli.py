@@ -74,6 +74,13 @@ def get_mnemonic(args, attr='mnemonic_file', prompt='mnemonic/hex seed: ', main=
         logging.warning("login greenaddress")
         args.conn, args.wallet, args.login_data = do_login(m)
         args.twofactor = args.conn.call('twofactor.get_config')
+        args.subaccounts2of2 = [0]
+        args.subaccounts2of3 = []
+        for subaccount in args.login_data["subaccounts"]:
+            if subaccount["type"] == "simple":
+                args.subaccounts2of2.append(subaccount["pointer"])
+            else:
+                args.subaccounts2of3.append(subaccount["pointer"])
 
     return m
 

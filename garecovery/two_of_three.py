@@ -539,7 +539,7 @@ class TwoOfTwoScan(TwoOfThree):
     def get_transactions(self):
         # Get a list of utxos by scanning the blockchain
         keysets = []
-        for subaccount in [0]: # not yet subaccount
+        for subaccount in clargs.args.subaccounts2of2:
             user_key = derive_user_key(self.wallets[0], subaccount)
             xpubs = ga_xpub.xpubs_from_mnemonic(self.mnemonic, subaccount, self.is_testnet)
             addrs = clargs.args.conn.call("addressbook.get_my_addresses", subaccount)
