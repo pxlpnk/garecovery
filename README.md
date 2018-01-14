@@ -1,8 +1,10 @@
 Recover Bitcoin Cash/BCASH/BCC/BCH from GreenAddress wallets
 
+Now also Bitcoin Gold/BGOLD/BTG - ![INFO](https://raw.githubusercontent.com/dumpyourbcash/garecovery/master/README_BGOLD.md "Bitcoin Gold") 
+
 #  Bitcoin Cash/BCASH/BCC/BCH
 
-This is same garecovery tool but for  Bitcoin Cash ONLY!!!!
+This is same garecovery tool but for  Bitcoin Cash and Bitcoin Gold ONLY!!!!
 
 
 # 2 of 2 Scan
@@ -74,6 +76,8 @@ bitcoin-cli decoderawtransaction XXXX
 ```
 
 check vout address to you only like 2 of 3.
+
+For check transaction is OK, also can using https://blockchain.info/decode-tx or https://live.blockcypher.com/btc/decodetx/
 
 After check, give code to garecovery to sign.
 Maybe wait 1 minute for each code or greenaddress error "#ratelimited".
@@ -165,6 +169,9 @@ Bitcoin: 1ApavmRLr4Trv5UeJni4fp4RRKG6affdN3 ![Bitcoin](https://raw.githubusercon
 
 
 Bitcoin Cash: 1GPgWu1cxwMRV2aqAZHSt4dQPbxFNXq7bg ![Bitcoin Cash](https://raw.githubusercontent.com/dumpyourbcash/garecovery/master/img/bcash.png "Bitcoin Cash")
+
+
+Bitcoin Gold: GLNHjAXLJSqeM9CCjbDrBjRsohpsqZFnRi ![Bitcoin Gold](https://raw.githubusercontent.com/dumpyourbcash/garecovery/master/img/bgold.png "Bitcoin Gold")
 
 
 Here is old README:

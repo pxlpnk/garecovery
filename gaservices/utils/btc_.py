@@ -24,7 +24,7 @@ def gen_pushdata(data):
     else:
         return bytearray([77, ]) + struct.pack("<H", len(data)) + data
 
-def tx_segwit_hash(tx, i, script, value):
+def tx_segwit_hash(tx, i, script, value, fork):
     # BIP143:
 
     # 1. nVersion
@@ -65,7 +65,7 @@ def tx_segwit_hash(tx, i, script, value):
     tx_bin += struct.pack("<L", tx.lock_time)
 
     # 10. hashType
-    tx_bin += struct.pack("<L", 0x41) # BCASH
+    tx_bin += struct.pack("<L", 0x41 | (fork * 256)) # BCASH
 
     return sha256d(tx_bin)
 

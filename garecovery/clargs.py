@@ -4,6 +4,7 @@ import logging
 import os
 import sys
 
+from wallycore import *
 
 # Define GreenAddress_T0 as the earliest possible GreenAddress UTXO
 # This is used as the default value for scanning the blockchain
@@ -82,6 +83,12 @@ def get_args(argv):
         type=int,
         default=5,
         help='Fee rate (satoshis per byte)')
+    parser.add_argument(
+        '--fork',
+        dest='fork',
+        type=int,
+        default=0,
+        help='Fork number (0 is BCASH, 79 is BGOLD)')
 
     rpc = parser.add_argument_group('Bitcoin RPC options')
 
@@ -206,4 +213,15 @@ def get_args(argv):
             arg_required('--ga-xpub', '--ga-xpub or --search-subaccounts')
 
     result.login_data = None
+    a = result.destination_address
+    if result.fork == 79: # BGOLD
+        # make BTC address for pycoin make transaction OK
+        if a[0] == "G":
+            a = base58check_from_bytes(b'\x00' + base58check_to_bytes(a)[1:])
+        elif a[0] == "A":
+            a = base58check_from_bytes(b'\x05' + base58check_to_bytes(a)[1:])
+        else:
+            parser.error("BGOLD address must to start G or A")
+        result.destination_address = a
+
     return result

@@ -294,12 +294,11 @@ class UTXO:
 
 
 def is_testnet_address(address):
-    try:
-        key = pycoin.key.Key.from_text(address)
-        netcode = key.netcode()
-        return netcode != 'BTC'
-    except pycoin.encoding.EncodingError:
-        return True
+    return False
+
+
+def make_bgold_address(a):
+    return base58check_from_bytes(b'\x17' + base58check_to_bytes(a)[1:])
 
 
 class TwoOfThree(object):
@@ -348,16 +347,21 @@ class TwoOfThree(object):
                 })
         logging.info('Importing {} derived addresses into bitcoind'.format(len(requests)))
 
+        api = { 0: "blockdozer.com/insight-api",
+                79: "btgexplorer.com/api"}[clargs.args.fork]
+        make_addr = { 0: lambda a: a,
+                      79: lambda a: make_bgold_address(a)}[clargs.args.fork]
         if https:
             all_utxos = []
             for addr in addresses:
                 data = None
                 while data is None:
                     try:
-                        data = urllib2.urlopen("https://blockdozer.com/insight-api/addr/%s/utxo" % addr).read()
+                        data = urllib2.urlopen("https://%s/addr/%s/utxo" % (api, make_addr(addr))).read()
                         data = json.loads(data.decode("ascii"))
                         all_utxos.extend(data)
-                    except:
+                    except Exception as e:
+                        logging.warning("exception %s %s" % (str(e), "https://%s/addr/%s/utxo" % (api, make_addr(addr))))
                         sleep(10)
                         data = None
         else:
@@ -392,10 +396,11 @@ class TwoOfThree(object):
                 data = None
                 while data is None:
                     try:
-                        data = urllib2.urlopen("https://blockdozer.com/insight-api/rawtx/%s" % tx).read()
+                        data = urllib2.urlopen("https://%s/rawtx/%s" % (api, tx)).read()
                         data = json.loads(data.decode("ascii"))
                         txs[tx] = data["rawtx"]
-                    except:
+                    except Exception as e:
+                        logging.warning("exception %s %s" % (str(e), "https://%s/rawtx/%s" % (api, tx)))
                         sleep(10)
                         data = None
             raw_txs = [txs[tx[0]] for tx in tx_matches]

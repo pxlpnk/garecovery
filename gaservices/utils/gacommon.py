@@ -129,7 +129,7 @@ def sign(txdata, signatories, args): # BCASH
             return None
 
         value = int(txdata['prevout_values'][prevout_index])
-        sighash = tx_segwit_hash(tx, prevout_index, script, value)
+        sighash = tx_segwit_hash(tx, prevout_index, script, value, args.fork)
 
         if args.recovery_mode == "2of2" or args.recovery_mode == "2of2scan":
             # only for you - after is greenaddress
@@ -149,13 +149,14 @@ def sign(txdata, signatories, args): # BCASH
 
         # ask code
         twofactor = { }
+        txtype = {0: "bcash", 79: "forkid"}[args.fork]
         if args.twofactor["email"]:
             args.conn.call("twofactor.request_email", "sign_alt_tx", 
-                           { "txtype": "bcash", "sha256d": h })
+                           { "txtype": txtype, "sha256d": h })
             twofactor = { "method": "email" }
         elif args.twofactor["sms"]:
             args.conn.call("twofactor.request_sms", "sign_alt_tx", 
-                           { "txtype": "bcash", "sha256d": h })
+                           { "txtype": txtype, "sha256d": h })
             twofactor = { "method": "sms" }
         elif args.twofactor["any"]:
             logging.warning("need email/sms twofactor")
@@ -165,8 +166,12 @@ def sign(txdata, signatories, args): # BCASH
             twofactor["code"] = user_input(twofactor["method"] + " code:")
 
         # sign greenaddress
-        signing = args.conn.call("vault.sign_alt_tx", tx.as_hex(), "bcash",
-                                 inp, twofactor)
+        if args.fork == 0: # BCASH
+            signing = args.conn.call("vault.sign_alt_tx", tx.as_hex(), "bcash",
+                                     inp, twofactor)
+        else:
+            signing = args.conn.call("vault.sign_alt_tx", tx.as_hex(), "forkid",
+                                     inp, twofactor, args.fork * 256)
 
         for prevout_index, txin in enumerate(tx.txs_in):
             script = hex_to_bytes(txdata['prevout_scripts'][prevout_index])
